@@ -508,6 +508,8 @@ vpc_linux
 *.so
 *.pc
 
+!lib/public/linux32/**.so
+
 # VScript generated
 vscript/languages/squirrel3/sqdbg/serialize_state.inl
 _vpc_ninja_objs
