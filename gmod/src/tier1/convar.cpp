@@ -241,6 +241,26 @@ void ConCommandBase::AddFlags( int flags )
 #endif
 }
 
+#if PLATFORM_64BITS
+//-----------------------------------------------------------------------------
+// Purpose: removes specified flags
+//-----------------------------------------------------------------------------
+void ConCommandBase::RemoveFlags( int flags )
+{
+	m_nFlags &= ~flags;
+}
+
+// Returns current flags
+int ConCommandBase::GetFlags() const
+{
+	return m_nFlags;
+}
+#endif
+
+int ConVar::GetFlags() const
+{
+	return m_pParent->m_nFlags;
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -725,6 +745,19 @@ const char *ConVar::GetName( void ) const
 	return m_pParent->m_pszName;
 }
 
+#if PLATFORM_64BITS
+const char *ConVar::GetBaseName( void ) const
+{
+	return m_pParent->m_pszName;
+}
+
+int ConVar::GetSplitScreenPlayerSlot( void ) const
+{
+	// Default implementation (certain FCVAR_USERINFO derive a new type of convar and set this)
+	return 0;
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Output : Returns true on success, false on failure.
@@ -941,6 +974,27 @@ void ConVar::InternalSetIntValue( int nValue )
 	}
 }
 
+#if PLATFORM_64BITS
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : *value - 
+//-----------------------------------------------------------------------------
+void ConVar::InternalSetColorValue( Color value )
+{
+	// Stuff color values into an int
+	int nValue;
+
+	unsigned char *pColorElement = ((unsigned char*)&nValue);
+	pColorElement[0] = value[0];
+	pColorElement[1] = value[1];
+	pColorElement[2] = value[2];
+	pColorElement[3] = value[3];
+
+	// Call the int internal set
+	InternalSetIntValue( nValue );
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: Private creation
 //-----------------------------------------------------------------------------
@@ -1010,6 +1064,18 @@ void ConVar::SetValue( int value )
 	ConVar *var = ( ConVar * )m_pParent;
 	var->InternalSetIntValue( value );
 }
+
+#if PLATFORM_64BITS
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : value - 
+//-----------------------------------------------------------------------------
+void ConVar::SetValue( Color value )
+{
+	ConVar *var = ( ConVar * )m_pParent;
+	var->InternalSetColorValue( value );
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: Reset to default value

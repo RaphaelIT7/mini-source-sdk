@@ -1137,6 +1137,17 @@ PLATFORM_INTERFACE struct tm *		Plat_gmtime( const time_t *timep, struct tm *res
 PLATFORM_INTERFACE time_t			Plat_timegm( struct tm *timeptr );
 PLATFORM_INTERFACE struct tm *		Plat_localtime( const time_t *timep, struct tm *result );
 
+#if PLATFORM_64BITS
+//-----------------------------------------------------------------------------
+// Message Box
+//-----------------------------------------------------------------------------
+#if defined( PLATFORM_WINDOWS_PC )
+PLATFORM_INTERFACE void Plat_MessageBox( const char *pTitle, const tchar *pMessage );
+#else
+#define Plat_MessageBox( t, m ) ((void)0)
+#endif
+#endif
+
 #if defined( _WIN32 ) && defined( _MSC_VER ) && ( _MSC_VER >= 1400 )
 	extern "C" unsigned __int64 __rdtsc();
 	#pragma intrinsic(__rdtsc)

@@ -32,6 +32,26 @@ enum InitReturnVal_t
 	INIT_LAST_VAL,
 };
 
+#if PLATFORM_64BITS
+//-----------------------------------------------------------------------------
+// Specifies a module + interface name for initialization
+//-----------------------------------------------------------------------------
+struct AppSystemInfo_t
+{
+	const char *m_pModuleName;
+	const char *m_pInterfaceName;
+};
+
+enum AppSystemTier_t
+{
+	APP_SYSTEM_TIER0 = 0,
+	APP_SYSTEM_TIER1,
+	APP_SYSTEM_TIER2,
+	APP_SYSTEM_TIER3,
+
+	APP_SYSTEM_TIER_OTHER,
+};
+#endif
 
 abstract_class IAppSystem
 {
@@ -47,8 +67,21 @@ public:
 	// Init, shutdown
 	virtual InitReturnVal_t Init() = 0;
 	virtual void Shutdown() = 0;
-};
 
+#if PLATFORM_64BITS
+	// Returns all dependent libraries
+	virtual const AppSystemInfo_t* GetDependencies() {return NULL;}
+
+	// Returns the tier
+	virtual AppSystemTier_t GetTier() {return APP_SYSTEM_TIER_OTHER;}
+
+	// Reconnect to a particular interface
+	virtual void Reconnect( CreateInterfaceFn factory, const char *pInterfaceName ) {}
+
+	// Is this appsystem a singleton? (returns false if there can be multiple instances of this interface)
+	virtual bool IsSingleton() { return true; }
+#endif
+};
 
 //-----------------------------------------------------------------------------
 // Helper empty implementation of an IAppSystem
@@ -68,6 +101,16 @@ public:
 	// Init, shutdown
 	virtual InitReturnVal_t Init() { return INIT_OK; }
 	virtual void Shutdown() {}
+
+#if PLATFORM_64BITS
+	virtual const AppSystemInfo_t* GetDependencies() { return NULL; }
+	virtual AppSystemTier_t GetTier() { return APP_SYSTEM_TIER_OTHER; }
+
+	virtual void Reconnect( CreateInterfaceFn factory, const char *pInterfaceName )
+	{
+		// ReconnectInterface( factory, pInterfaceName );
+	}
+#endif
 };
 
 

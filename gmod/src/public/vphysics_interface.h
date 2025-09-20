@@ -263,12 +263,15 @@ public:
 
 	// loads a set of solids into a vcollide_t
 	virtual void			VCollideLoad( vcollide_t *pOutput, int solidCount, const char *pBuffer, int size, bool swap = false ) = 0;
-	// destroyts the set of solids created by VCollideLoad
+	// destroys the set of solids created by VCollideLoad
 	virtual void			VCollideUnload( vcollide_t *pVCollide ) = 0;
 
 	// begins parsing a vcollide.  NOTE: This keeps pointers to the text
 	// If you free the text and call members of IVPhysicsKeyParser, it will crash
 	virtual IVPhysicsKeyParser	*VPhysicsKeyParserCreate( const char *pKeyData ) = 0;
+#if PLATFORM_64BITS
+	virtual IVPhysicsKeyParser *VPhysicsKeyParserCreate( vcollide_t *pVCollide ) = 0;
+#endif
 	// Free the parser created by VPhysicsKeyParserCreate
 	virtual void			VPhysicsKeyParserDestroy( IVPhysicsKeyParser *pParser ) = 0;
 
@@ -298,6 +301,18 @@ public:
 	// dumps info about the collide to Msg()
 	virtual void			OutputDebugInfo( const CPhysCollide *pCollide ) = 0;
 	virtual unsigned int	ReadStat( int statID ) = 0;
+
+#if PLATFORM_64BITS
+	// Get an AABB for an oriented collision model
+	virtual float			CollideGetRadius( const CPhysCollide *pCollide ) = 0;
+
+	virtual void			*VCollideAllocUserData( vcollide_t *pVCollide, size_t userDataSize ) = 0;
+	virtual void			VCollideFreeUserData( vcollide_t *pVCollide ) = 0;
+	virtual void			VCollideCheck( vcollide_t *pVCollide, const char *pName ) = 0;
+	virtual bool			TraceBoxAA( const Ray_t &ray, const CPhysCollide *pCollide, trace_t *ptr ) = 0;
+
+	virtual void			DuplicateAndScale( vcollide_t *pOut, const vcollide_t *pIn, float flScale ) = 0;
+#endif
 };
 
 // this can be used to post-process a collision model
@@ -629,7 +644,13 @@ public:
 	virtual void			EnableDeleteQueue( bool enable ) = 0;
 
 	// Save/Restore methods
+#if defined(PLATFORM_64BITS)
+	virtual void			PreSave( const physprerestoreparams_t &params ) = 0;
+#endif
 	virtual bool			Save( const physsaveparams_t &params ) = 0;
+#if defined(PLATFORM_64BITS)
+	virtual void			PostSave() = 0;
+#endif
 	virtual void			PreRestore( const physprerestoreparams_t &params ) = 0;
 	virtual bool			Restore( const physrestoreparams_t &params ) = 0;
 	virtual void			PostRestore() = 0;
@@ -657,6 +678,25 @@ public:
 
 	virtual void EnableConstraintNotify( bool bEnable ) = 0;
 	virtual void DebugCheckContacts(void) = 0;
+
+#if PLATFORM_64BITS
+	virtual void			SetAlternateGravity( const Vector &gravityVector ) = 0;
+	virtual void			GetAlternateGravity( Vector *pGravityVector ) const = 0;
+
+	virtual float			GetDeltaFrameTime( int maxTicks ) const = 0;
+	virtual void			ForceObjectsToSleep( IPhysicsObject **pList, int listCount ) = 0;
+	
+	//Network prediction related functions
+	virtual void			SetPredicted( bool bPredicted ) = 0; //Interaction with this system and it's objects may not always march forward, sometimes it will get/set data in the past.
+	virtual bool			IsPredicted( void ) = 0;
+	virtual void			SetPredictionCommandNum( int iCommandNum ) = 0; //what command the client is working on right now
+	virtual int				GetPredictionCommandNum( void ) = 0;
+	virtual void			DoneReferencingPreviousCommands( int iCommandNum ) = 0; //won't need data from commands before this one any more
+	virtual void			RestorePredictedSimulation( void ) = 0; //called to restore results from a previous simulation with the same predicted timestamp set
+
+	// destroy a CPhysCollide used in CreatePolyObject()/CreatePolyObjectStatic() when any owning IPhysicsObject is flushed from the queued deletion list.
+	virtual void DestroyCollideOnDeadObjectFlush( CPhysCollide * ) = 0; //should only be used after calling DestroyObject() on all IPhysicsObjects created with it.
+#endif
 };
 
 enum callbackflags
@@ -679,6 +719,16 @@ enum callbackflags
 	CALLBACK_CHECK_COLLISION_DISABLE = 0x4000,
 	CALLBACK_MARKED_FOR_TEST	= 0x8000,	// debug -- marked object is being debugged
 };
+
+#if PLATFORM_64BITS
+enum collisionhints
+{
+	COLLISION_HINT_DEBRIS		= 0x0001,
+	COLLISION_HINT_STATICSOLID	= 0x0002,
+};
+#endif
+
+class IPredictedPhysicsObject;
 
 abstract_class IPhysicsObject
 {
@@ -732,7 +782,11 @@ public:
 	virtual void			RecheckCollisionFilter() = 0;
 	// NOTE: Contact points aren't updated when collision rules change, call this to force an update
 	// UNDONE: Force this in RecheckCollisionFilter() ?
+#if PLATFORM_64BITS
+	virtual void			RecheckContactPoints( bool bSearchForNewContacts = false ) = 0;
+#else
 	virtual void			RecheckContactPoints() = 0;
+#endif
 
 	// mass accessors
 	virtual void			SetMass( float mass ) = 0;
@@ -760,6 +814,10 @@ public:
 
 	// Get the radius if this is a sphere object (zero if this is a polygonal mesh)
 	virtual float			GetSphereRadius() const = 0;
+#if PLATFORM_64BITS
+	// Set the radius on a sphere. May need to force recalculation of contact points
+	virtual void			SetSphereRadius(float radius) = 0;
+#endif
 	virtual float			GetEnergy() const = 0;
 	virtual Vector			GetMassCenterLocalSpace() const = 0;
 
@@ -854,10 +912,38 @@ public:
 	// dumps info about the object to Msg()
 	virtual void			OutputDebugInfo() const = 0;
 
+#if PLATFORM_64BITS
+#if OBJECT_WELDING
+	virtual void			WeldToObject( IPhysicsObject *pParent ) = 0;
+	virtual void			RemoveWeld( IPhysicsObject *pOther ) = 0;
+	virtual void			RemoveAllWelds( void ) = 0;
+#endif
+
+	// EnableGravity still determines whether to apply gravity
+	// This flag determines which gravity constant to use for an alternate gravity effect
+	virtual void			SetUseAlternateGravity( bool bSet ) = 0;
+	virtual void			SetCollisionHints( uint32 collisionHints ) = 0;
+	virtual uint32			GetCollisionHints() const = 0;
+
+	inline bool				IsPredicted( void ) const { return GetPredictedInterface() != NULL; } //true if class has an IPredictedPhysicsObject interface
+	virtual IPredictedPhysicsObject *GetPredictedInterface( void ) const = 0;
+	virtual void			SyncWith( IPhysicsObject *pOther ) = 0;
+#endif
+
 	// 2025 - Planned to be added to Gmod once the new vphysics build is stable and usable for Gmod.
-	virtual float			GetBuoyancyRatio( void ) const = 0;			
+	virtual float			GetBuoyancyRatio( void ) const = 0;
 };
 
+#if PLATFORM_64BITS
+abstract_class IPredictedPhysicsObject : public IPhysicsObject
+{
+public:
+	virtual ~IPredictedPhysicsObject( void ) {}
+
+	virtual void SetErrorDelta_Position( const Vector &vPosition ) = 0;
+	virtual void SetErrorDelta_Velocity( const Vector &vVelocity ) = 0;
+};
+#endif
 
 abstract_class IPhysicsSpring
 {
@@ -902,12 +988,25 @@ struct surfaceaudioparams_t
 	float			hardThreshold;	// surface hardness > this causes "hard" impacts, < this causes "soft" impacts
 	float			hardVelocityThreshold;	// collision velocity > this causes "hard" impacts, < this causes "soft" impacts
 									// NOTE: Hard impacts must meet both hardnessFactor AND velocity thresholds
+
+#if PLATFORM_64BITS
+	float			highPitchOcclusion;
+	float			midPitchOcclusion;
+	float			lowPitchOcclusion;
+#endif
 };
 
 struct surfacesoundnames_t
 {
+#if PLATFORM_64BITS
+	unsigned short	walkStepLeft;
+	unsigned short	walkStepRight;
+	unsigned short	runStepLeft;
+	unsigned short	runStepRight;
+#else
 	unsigned short	stepleft;
 	unsigned short	stepright;
+#endif
 
 	unsigned short	impactSoft;
 	unsigned short	impactHard;
@@ -922,22 +1021,34 @@ struct surfacesoundnames_t
 	unsigned short	strainSound;
 };
 
+#if PLATFORM_64BITS // On 64x this would be HSOUNDSCRIPTHASH
+typedef unsigned int PHYSSOUND;
+#else
+typedef short PHYSSOUND;
+#endif
 struct surfacesoundhandles_t
 {
-	short	stepleft;
-	short	stepright;
+#if PLATFORM_64BITS
+	PHYSSOUND	walkStepLeft;
+	PHYSSOUND	walkStepRight;
+	PHYSSOUND	runStepLeft;
+	PHYSSOUND	runStepRight;
+#else
+	PHYSSOUND	stepleft;
+	PHYSSOUND	stepright;
+#endif
 
-	short	impactSoft;
-	short	impactHard;
+	PHYSSOUND	impactSoft;
+	PHYSSOUND	impactHard;
 
-	short	scrapeSmooth;
-	short	scrapeRough;
+	PHYSSOUND	scrapeSmooth;
+	PHYSSOUND	scrapeRough;
 
-	short	bulletImpact;
-	short	rolling;
+	PHYSSOUND	bulletImpact;
+	PHYSSOUND	rolling;
 
-	short	breakSound;
-	short	strainSound;
+	PHYSSOUND	breakSound;
+	PHYSSOUND	strainSound;
 };
 
 struct surfacegameprops_t
@@ -946,10 +1057,19 @@ struct surfacegameprops_t
 	float			maxSpeedFactor;			// Modulates player max speed when walking on this surface
 	float			jumpFactor;				// Indicates how much higher the player should jump when on the surface
 // Game-specific data
+#if PLATFORM_64BITS
+	float			penetrationModifier;
+	float			damageModifier;
+#endif
 	unsigned short	material;
 	// Indicates whether or not the player is on a ladder.
 	unsigned char	climbable;
 	unsigned char	pad;
+
+#if PLATFORM_64BITS
+	bool			hidetargetid;
+	float			damageLossPercentPerPenetration;
+#endif
 };
 
 //-----------------------------------------------------------------------------
@@ -964,6 +1084,8 @@ struct surfacedata_t
 
 	surfacesoundhandles_t		soundhandles;
 };
+
+class ISaveRestoreOps;
 
 #define VPHYSICS_SURFACEPROPS_INTERFACE_VERSION	"VPhysicsSurfaceProps001"
 // Josh: Garry's Mod CPhysicsSurfaceProps as of 2023/04/10.
@@ -1017,7 +1139,10 @@ public:
 
 	// NOTE: Same as GetPhysicsProperties, but maybe more convenient
 	virtual void	GetPhysicsParameters( int surfaceDataIndex, surfacephysicsparams_t *pParamsOut ) const = 0;
-	
+
+#if PLATFORM_64BITS
+	virtual ISaveRestoreOps* GetMaterialIndexDataOps() const = 0;
+#else
 	// Josh: Unknown GMod specific stuff.
 	// VTable information taken from OSX vphysics.dylib with symbols with IDA.
 	virtual void			*GetIVPMaterial( int nIndex ) = 0;
@@ -1025,6 +1150,7 @@ public:
 	virtual void			*GetIVPManager( void ) = 0;
 	virtual int				RemapIVPMaterialIndex( int nIndex ) const = 0;
 	virtual const char 		*GetReservedMaterialName( int nMaterialIndex ) const = 0;
+#endif
 };
 
 abstract_class IPhysicsFluidController
@@ -1112,6 +1238,11 @@ struct convertconvexparams_t
 	bool		buildOuterConvexHull;
 	bool		buildDragAxisAreas;
 	bool		buildOptimizedTraceTables;
+#if PLATFORM_64BITS
+	bool		checkOptimalTracing;
+	bool		bUseFastApproximateInertiaTensor;
+	bool		bBuildAABBTree;
+#endif
 	float		dragAreaEpsilon;
 	CPhysConvex *pForcedOuterHull;
 
@@ -1121,6 +1252,11 @@ struct convertconvexparams_t
 		buildOuterConvexHull = false;
 		buildDragAxisAreas = false;
 		buildOptimizedTraceTables = false;
+#if PLATFORM_64BITS
+		checkOptimalTracing = false;
+		bUseFastApproximateInertiaTensor = false;
+		bBuildAABBTree = false;
+#endif
 		pForcedOuterHull = NULL;
 	}
 };
@@ -1153,6 +1289,12 @@ struct physrestoreparams_t
 	IPhysicsGameTrace	*pGameTrace;
 };
 
+#if PLATFORM_64BITS
+struct physprerestoreparams_t
+{
+	IPhysicsObject *pWorldObject;
+};
+#else
 struct physrecreateparams_t
 {
 	void *pOldObject;
@@ -1164,6 +1306,7 @@ struct physprerestoreparams_t
 	int recreatedObjectCount;
 	physrecreateparams_t recreatedObjectList[1];
 };
+#endif
 
 //-------------------------------------
 

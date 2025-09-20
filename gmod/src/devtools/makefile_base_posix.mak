@@ -137,7 +137,8 @@ ifeq ($(OS),Linux)
 		ARCH_FLAGS += -march=$(MARCH_TARGET) -mtune=core2
 		LD_SO = ld-linux-x86_64.so.2
 		LIBSTDCXX := $(shell $(CXX) -print-file-name=libstdc++.a)
-		LIBSTDCXXPIC := $(shell $(CXX) -print-file-name=libstdc++-pic.a)
+		LIBSTDCXXPIC := $(shell $(CXX) -print-file-name=libstdc++.a)
+		LDFLAGS += -L/usr/lib/x86_64-linux-gnu/
 	else
 		# pentium4 = MMX, SSE, SSE2 - no SSE3 (added in prescott) # -msse3 -mfpmath=sse
 		ARCH_FLAGS += -m32 -march=$(MARCH_TARGET) -mtune=core2 $(SSE_GEN_FLAGS)
