@@ -854,6 +854,8 @@ public:
 	// dumps info about the object to Msg()
 	virtual void			OutputDebugInfo() const = 0;
 
+	// 2025 - Planned to be added to Gmod once the new vphysics build is stable and usable for Gmod.
+	virtual float			GetBuoyancyRatio( void ) const = 0;			
 };
 
 
