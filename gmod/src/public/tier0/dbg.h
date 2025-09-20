@@ -19,8 +19,12 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#if PLATFORM_64BITS
+#include "logging.h"
+#else
 #ifdef POSIX
 #define __cdecl
+#endif
 #endif
 
 //-----------------------------------------------------------------------------
@@ -168,6 +172,20 @@ enum SpewType_t
 	SPEW_TYPE_COUNT
 };
 
+#if PLATFORM_64BITS
+
+DBG_INTERFACE void _ExitOnFatalAssert( const tchar* pFile, int line );
+
+#if defined( DBGFLAG_STRINGS_STRIP )
+};
+#define DbgFlagMacro_ExitOnFatalAssert( pFile, line ) _ExitOnFatalAssert( "", 0 )
+#else
+#define DbgFlagMacro_ExitOnFatalAssert( pFile, line ) _ExitOnFatalAssert( pFile, line )
+#endif
+DBG_INTERFACE bool ShouldUseNewAssertDialog();
+
+#else
+
 enum SpewRetval_t
 {
 	SPEW_DEBUGGER = 0,
@@ -207,10 +225,18 @@ DBG_INTERFACE SpewRetval_t   ColorSpewMessage( SpewType_t type, const Color *pCo
 DBG_INTERFACE void _ExitOnFatalAssert( const tchar* pFile, int line );
 DBG_INTERFACE bool ShouldUseNewAssertDialog();
 
+#endif
+
 DBG_INTERFACE bool SetupWin32ConsoleIO();
 
 // Returns true if they want to break in the debugger.
 DBG_INTERFACE bool DoNewAssertDialog( const tchar *pFile, int line, const tchar *pExpression );
+
+#if defined( DBGFLAG_STRINGS_STRIP )
+#define DbgFlagMacro_DoNewAssertDialog( pFile, line, pExpression ) DoNewAssertDialog( "", 0, "" )
+#else
+#define DbgFlagMacro_DoNewAssertDialog( pFile, line, pExpression ) DoNewAssertDialog( pFile, line, pExpression )
+#endif
 
 // Allows the assert dialogs to be turned off from code
 DBG_INTERFACE bool AreAllAssertsDisabled();
@@ -221,8 +247,12 @@ typedef void (*AssertFailedNotifyFunc_t)( const char *pchFile, int nLine, const 
 DBG_INTERFACE void SetAssertFailedNotifyFunc( AssertFailedNotifyFunc_t func );
 DBG_INTERFACE void CallAssertFailedNotifyFunc( const char *pchFile, int nLine, const char *pchMessage );
 
+#ifdef PLATFORM_64BITS
+inline bool HushAsserts() { return false; };
+#else
 /* True if -hushasserts was passed on command line. */
 DBG_INTERFACE bool HushAsserts();
+#endif
 
 #if defined( USE_SDL )
 DBG_INTERFACE void SetAssertDialogParent( struct SDL_Window *window );
@@ -244,6 +274,36 @@ DBG_INTERFACE struct SDL_Window * GetAssertDialogParent();
 	#define DBGFLAG_ASSERT
 	#define DBGFLAG_ASSERTFATAL
 	#define DBGFLAG_ASSERTDEBUG
+#else
+#if PLATFORM_64BITS
+	#define  _AssertMsg( _exp, _msg, _executeExp, _bFatal )	\
+		do {																\
+			if (!(_exp)) 													\
+			{ 																\
+				LoggingResponse_t assertMsg_ret = Log_Assert( "%s (%d) : %s\n", __TFILE__, __LINE__, static_cast<const char*>( _msg ) );	\
+				CallAssertFailedNotifyFunc( __TFILE__, __LINE__, _msg );								\
+				_executeExp; 												\
+				if ( assertMsg_ret == LR_DEBUGGER )									\
+				{															\
+					if ( ShouldUseNewAssertDialog() )                       \
+					{                                                       \
+						if ( DbgFlagMacro_DoNewAssertDialog( __TFILE__, __LINE__, _msg ) ) \
+							DebuggerBreak();									\
+					}                                                       \
+					if ( _bFatal )											\
+						DbgFlagMacro_ExitOnFatalAssert( __TFILE__, __LINE__ );			\
+				}															\
+			}																\
+		} while (0)
+
+	#define  _AssertMsgOnce( _exp, _msg, _bFatal ) \
+		do {																\
+			static bool fAsserted;											\
+			if (!fAsserted )												\
+			{ 																\
+				_AssertMsg( _exp, _msg, (fAsserted = true), _bFatal );		\
+			}																\
+		} while (0)
 #else
 	#define  _AssertMsg( _exp, _msg, _executeExp, _bFatal )	\
 		do {																\
@@ -275,6 +335,7 @@ DBG_INTERFACE struct SDL_Window * GetAssertDialogParent();
 				_AssertMsg( _exp, _msg, (fAsserted = true), _bFatal );		\
 			}																\
 		} while (0)
+#endif
 #endif
 
 /* Spew macros... */
@@ -601,12 +662,14 @@ inline DEST_POINTER_TYPE assert_cast(SOURCE_POINTER_TYPE* pSource)
 
 // Have to use these stubs so we don't have to include windows.h here.
 
+#if !defined(PLATFORM_64BITS)
 DBG_INTERFACE void _AssertValidReadPtr( void* ptr, int count = 1 );
 DBG_INTERFACE void _AssertValidWritePtr( void* ptr, int count = 1 );
 DBG_INTERFACE void _AssertValidReadWritePtr( void* ptr, int count = 1 );
 DBG_INTERFACE void AssertValidStringPtr( const tchar* ptr, int maxchar = 0xFFFFFF );
+#endif
 
-#ifdef DBGFLAG_ASSERT
+#if defined(DBGFLAG_ASSERT) && !defined(PLATFORM_64BITS)
 
 FORCEINLINE void AssertValidReadPtr( const void* ptr, int count = 1 )	    { _AssertValidReadPtr( (void*)ptr, count ); }
 FORCEINLINE void AssertValidWritePtr( const void* ptr, int count = 1 )		{ _AssertValidWritePtr( (void*)ptr, count ); }

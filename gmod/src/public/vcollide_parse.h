@@ -15,11 +15,20 @@
 
 struct solid_t
 {
+#if PLATFORM_64BITS
+	char	name[512];
+	char	parent[512];
+	char	surfaceprop[512];
+	Vector	massCenterOverride;
+	int		index;
+	int		contents;
+#else
 	int		index;
 	char	name[512];
 	char	parent[512];
 	char	surfaceprop[512];
 	Vector	massCenterOverride;
+#endif
 	objectparams_t params;
 };
 
@@ -63,6 +72,10 @@ public:
 	virtual void		ParseCustom( void *pCustom, IVPhysicsKeyHandler *unknownKeyHandler ) = 0;
 	virtual void		ParseVehicle( vehicleparams_t *pVehicle, IVPhysicsKeyHandler *unknownKeyHandler ) = 0;
 	virtual void		SkipBlock( void ) = 0;
+#if PLATFORM_64BITS
+	virtual void		ParseCollisionRules( ragdollcollisionrules_t *pRules, IVPhysicsKeyHandler *unknownKeyHandler ) = 0;
+	virtual void		ParseRagdollAnimatedFriction( ragdollanimatedfriction_t *pFriction, IVPhysicsKeyHandler *unknownKeyHandler	) = 0;
+#endif
 };
 
 #endif // VCOLLIDE_PARSE_H

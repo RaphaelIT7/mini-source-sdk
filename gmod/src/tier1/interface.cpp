@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include "tier1/strtools.h"
 #include "tier0/icommandline.h"
-#include "tier0/dbg.h"
+#include "tier0/stacktools.h"
 #include "tier0/threadtools.h"
 #ifdef _WIN32
 #include <direct.h> // getcwd
@@ -163,32 +163,188 @@ struct ThreadedLoadLibaryContext_t
 {
 	const char *m_pLibraryName;
 	HMODULE m_hLibrary;
+	DWORD m_nError;
+	ThreadedLoadLibaryContext_t() : m_pLibraryName(NULL), m_hLibrary(0), m_nError(0) {}
 };
 
 #ifdef _WIN32
 
 // wraps LoadLibraryEx() since 360 doesn't support that
-static HMODULE InternalLoadLibrary( const char *pName, Sys_Flags flags )
+static HMODULE InternalLoadLibrary( const char *pName )
 {
 #if defined(_X360)
 	return LoadLibrary( pName );
 #else
-	if ( flags & SYS_NOLOAD )
-		return GetModuleHandle( pName );
-	else
-		return LoadLibraryEx( pName, NULL, LOAD_WITH_ALTERED_SEARCH_PATH );
+	return LoadLibraryEx( pName, NULL, LOAD_WITH_ALTERED_SEARCH_PATH );
 #endif
 }
 unsigned ThreadedLoadLibraryFunc( void *pParam )
 {
 	ThreadedLoadLibaryContext_t *pContext = (ThreadedLoadLibaryContext_t*)pParam;
-	pContext->m_hLibrary = InternalLoadLibrary( pContext->m_pLibraryName, SYS_NOFLAGS );
+	pContext->m_hLibrary = InternalLoadLibrary( pContext->m_pLibraryName );
 	return 0;
 }
 
 #endif // _WIN32
 
-HMODULE Sys_LoadLibrary( const char *pLibraryName, Sys_Flags flags )
+#if PLATFORM_64BITS
+// global to propagate a library load error from thread into Sys_LoadModule
+static DWORD g_nLoadLibraryError = 0;
+
+static HMODULE Sys_LoadLibraryGuts( const char *pLibraryName )
+{
+#ifdef PLATFORM_PS3
+
+	PS3_LoadAppSystemInterface_Parameters_t *pPRX = new PS3_LoadAppSystemInterface_Parameters_t;
+	Q_memset( pPRX, 0, sizeof( PS3_LoadAppSystemInterface_Parameters_t ) );
+	pPRX->cbSize = sizeof( PS3_LoadAppSystemInterface_Parameters_t );
+	int iResult = PS3_PrxLoad( pLibraryName, pPRX );
+	if ( iResult < CELL_OK )
+	{
+		delete pPRX;
+		return NULL;
+	}
+	return reinterpret_cast< HMODULE >( pPRX );
+
+#else
+
+	char str[1024];
+
+	// How to get a string out of a #define on the command line.
+	const char *pModuleExtension = DLL_EXT_STRING;	
+	const char *pModuleAddition = pModuleExtension;
+
+	Q_strncpy( str, pLibraryName, sizeof(str) );
+	if ( !Q_stristr( str, pModuleExtension ) )
+	{
+		if ( IsX360() )
+		{
+			Q_StripExtension( str, str, sizeof(str) );
+		}
+		Q_strncat( str, pModuleAddition, sizeof(str) );
+	}
+	Q_FixSlashes( str );
+
+#ifdef _WIN32
+	ThreadedLoadLibraryFunc_t threadFunc = GetThreadedLoadLibraryFunc();
+	if ( !threadFunc )
+	{
+		HMODULE retVal = InternalLoadLibrary( str );
+		if( retVal )
+		{
+			StackToolsNotify_LoadedLibrary( str );
+		}
+#if 0	// you can enable this block to help track down why a module isn't loading:
+		else
+		{
+#ifdef  _WINDOWS
+			char buf[1024];
+			FormatMessage( 
+				FORMAT_MESSAGE_FROM_SYSTEM | 
+				FORMAT_MESSAGE_IGNORE_INSERTS,
+				NULL,
+				GetLastError(),
+				0, // Default language
+				(LPTSTR) buf,
+				1023,
+				NULL  // no insert arguments
+				);
+			Warning( "Could not load %s: %s\n", str, buf );
+#endif
+		}
+#endif
+
+		return retVal;
+	}
+
+	ThreadedLoadLibaryContext_t context;
+	context.m_pLibraryName = str;
+	context.m_hLibrary = 0;
+
+	ThreadHandle_t h = CreateSimpleThread( ThreadedLoadLibraryFunc, &context );
+
+#ifdef _X360
+	ThreadSetAffinity( h, XBOX_PROCESSOR_3 );
+#endif
+
+	unsigned int nTimeout = 0;
+	while( WaitForSingleObject( (HANDLE)h, nTimeout ) == WAIT_TIMEOUT )
+	{
+		nTimeout = threadFunc();
+	}
+
+	ReleaseThreadHandle( h );
+
+	if( context.m_hLibrary )
+	{
+		g_nLoadLibraryError = 0;
+		StackToolsNotify_LoadedLibrary( str );
+	}
+	else
+	{
+		g_nLoadLibraryError = context.m_nError;
+	}
+
+	return context.m_hLibrary;
+
+#elif defined( POSIX ) && !defined( _PS3 )
+	HMODULE ret = (HMODULE)dlopen( str, RTLD_NOW );
+	if ( ! ret )
+	{
+		const char *pError = dlerror();
+		if ( pError && ( strstr( pError, "No such file" ) == 0 ) && ( strstr( pError, "image not found") == 0 ) )
+		{
+			Msg( " failed to dlopen %s error=%s\n", str, pError );
+
+		}
+	}
+
+// 	if( ret )
+// 		StackToolsNotify_LoadedLibrary( str );
+	
+	return ret;
+#endif
+
+#endif
+}
+
+static HMODULE Sys_LoadLibrary( const char *pLibraryName )
+{
+	// load a library. If a library suffix is set, look for the library first with that name
+	const char *pSuffix = NULL;
+	
+	if ( CommandLine()->FindParm( "-xlsp" ) )
+	{
+		pSuffix = "_xlsp";
+	}
+#ifdef POSIX
+	else if ( CommandLine()->FindParm( "-valveinternal" ) )
+	{
+		pSuffix = "_valveinternal";
+	}
+#endif
+#ifdef IS_WINDOWS_PC
+	else if ( CommandLine()->FindParm( "-ds" ) )			// windows DS bins
+	{
+		pSuffix = "_ds";
+	}
+#endif
+	if ( pSuffix )
+	{
+		char nameBuf[MAX_PATH];
+		strcpy( nameBuf, pLibraryName );
+		char *pDot = strchr( nameBuf, '.' );
+		if ( pDot )
+			*pDot = 0;
+		V_strncat( nameBuf, pSuffix, sizeof( nameBuf ), COPY_ALL_CHARACTERS );
+		HMODULE hRet = Sys_LoadLibraryGuts( nameBuf );
+		if ( hRet )
+			return hRet;
+	}
+	return Sys_LoadLibraryGuts( pLibraryName );
+}
+#else
+HMODULE Sys_LoadLibrary( const char *pLibraryName )
 {
 	char str[ 1024 ];
 	// Note: DLL_EXT_STRING can be "_srv.so" or "_360.dll". So be careful
@@ -217,15 +373,9 @@ HMODULE Sys_LoadLibrary( const char *pLibraryName, Sys_Flags flags )
 #ifdef _WIN32
 	ThreadedLoadLibraryFunc_t threadFunc = GetThreadedLoadLibraryFunc();
 	if ( !threadFunc )
-		return InternalLoadLibrary( str, flags );
-
-	// We shouldn't be passing noload while threaded.
-	Assert( !( flags & SYS_NOLOAD ) );
+		return InternalLoadLibrary( str );
 
 	ThreadedLoadLibaryContext_t context;
-	context.m_pLibraryName = str;
-	context.m_hLibrary = 0;
-
 	ThreadHandle_t h = CreateSimpleThread( ThreadedLoadLibraryFunc, &context );
 
 #ifdef _X360
@@ -244,11 +394,8 @@ HMODULE Sys_LoadLibrary( const char *pLibraryName, Sys_Flags flags )
 #elif POSIX
 	int dlopen_mode = RTLD_NOW;
 
-	if ( flags & SYS_NOLOAD )
-		dlopen_mode |= RTLD_NOLOAD;
-
 	HMODULE ret = ( HMODULE )dlopen( str, dlopen_mode );
-	if ( !ret && !( flags & SYS_NOLOAD ) )
+	if ( !ret )
 	{
 		const char *pError = dlerror();
 		if ( pError && ( strstr( pError, "No such file" ) == 0 ) && ( strstr( pError, "image not found" ) == 0 ) )
@@ -260,6 +407,7 @@ HMODULE Sys_LoadLibrary( const char *pLibraryName, Sys_Flags flags )
 	return ret;
 #endif
 }
+#endif
 static bool s_bRunningWithDebugModules = false;
 
 //-----------------------------------------------------------------------------
@@ -267,7 +415,7 @@ static bool s_bRunningWithDebugModules = false;
 // Input  : *pModuleName - filename of the component
 // Output : opaque handle to the module (hides system dependency)
 //-----------------------------------------------------------------------------
-CSysModule *Sys_LoadModule( const char *pModuleName, Sys_Flags flags /* = SYS_NOFLAGS (0) */ )
+CSysModule *Sys_LoadModule( const char *pModuleName )
 {
 	// If using the Steam filesystem, either the DLL must be a minimum footprint
 	// file in the depot (MFP) or a filesystem GetLocalCopy() call must be made
@@ -303,13 +451,13 @@ CSysModule *Sys_LoadModule( const char *pModuleName, Sys_Flags flags /* = SYS_NO
 		{
 			Q_snprintf( szAbsoluteModuleName, sizeof(szAbsoluteModuleName), "%s/bin/%s", szCwd, pModuleName );
 		}
-		hDLL = Sys_LoadLibrary( szAbsoluteModuleName, flags );
+		hDLL = Sys_LoadLibrary( szAbsoluteModuleName );
 	}
 
 	if ( !hDLL )
 	{
 		// full path failed, let LoadLibrary() try to search the PATH now
-		hDLL = Sys_LoadLibrary( pModuleName, flags );
+		hDLL = Sys_LoadLibrary( pModuleName );
 #if defined( _DEBUG )
 		if ( !hDLL )
 		{

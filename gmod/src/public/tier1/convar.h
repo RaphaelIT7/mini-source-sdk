@@ -69,8 +69,8 @@ void ConVar_PublishToVXConsole();
 typedef void ( *FnCommandCallbackVoid_t )( void );
 typedef void ( *FnCommandCallback_t )( const CCommand &command );
 
-#define COMMAND_COMPLETION_MAXITEMS		64
-#define COMMAND_COMPLETION_ITEM_LENGTH	64
+#define COMMAND_COMPLETION_MAXITEMS		128
+#define COMMAND_COMPLETION_ITEM_LENGTH	128
 
 //-----------------------------------------------------------------------------
 // Returns 0 to COMMAND_COMPLETION_MAXITEMS worth of completion strings
@@ -121,6 +121,13 @@ public:
 	// Set flag
 	virtual void				AddFlags( int flags );
 
+#if PLATFORM_64BITS
+	// Clear flag
+	virtual void				RemoveFlags( int flags );
+
+	virtual int					GetFlags() const;
+#endif
+
 	// Return name of cvar
 	virtual const char			*GetName( void ) const;
 
@@ -137,6 +144,7 @@ public:
 	virtual CVarDLLIdentifier_t	GetDLLIdentifier() const;
 
 protected:
+	// On 64x it's just named Create
 	virtual void				CreateBase( const char *pName, const char *pHelpString = 0, 
 									int flags = 0 );
 
@@ -341,6 +349,12 @@ public:
 	virtual const char*			GetHelpText( void ) const;
 	virtual bool				IsRegistered( void ) const;
 	virtual const char			*GetName( void ) const;
+#if PLATFORM_64BITS
+	// Return name of command (usually == GetName(), except in case of FCVAR_SS_ADDED vars
+	virtual const char			*GetBaseName( void ) const;
+	virtual int					GetSplitScreenPlayerSlot() const;
+#endif
+	virtual int					GetFlags() const;
 	virtual void				AddFlags( int flags );
 	virtual	bool				IsCommand( void ) const;
 
@@ -348,8 +362,13 @@ public:
 	void InstallChangeCallback( FnChangeCallback_t callback );
 
 	// Retrieve value
+#if PLATFORM_64BITS
+	virtual float				GetFloat( void ) const;
+	virtual int					GetInt( void ) const;
+#else
 	FORCEINLINE_CVAR float			GetFloat( void ) const;
 	FORCEINLINE_CVAR int			GetInt( void ) const;
+#endif
 	FORCEINLINE_CVAR bool			GetBool() const {  return !!GetInt(); }
 	FORCEINLINE_CVAR char const	   *GetString( void ) const;
 
@@ -360,6 +379,9 @@ public:
 	virtual void				SetValue( const char *value );
 	virtual void				SetValue( float value );
 	virtual void				SetValue( int value );
+#if PLATFORM_64BITS
+	virtual void				SetValue( Color value );
+#endif
 	
 	// Reset to default value
 	void						Revert( void );
@@ -376,6 +398,9 @@ private:
 	// For CVARs marked FCVAR_NEVER_AS_STRING
 	virtual void				InternalSetFloatValue( float fNewValue );
 	virtual void				InternalSetIntValue( int nValue );
+#if PLATFORM_64BITS
+	virtual void				InternalSetColorValue( Color value );
+#endif
 
 	virtual bool				ClampValue( float& value );
 	virtual void				ChangeStringValue( const char *tempVal, float flOldValue );

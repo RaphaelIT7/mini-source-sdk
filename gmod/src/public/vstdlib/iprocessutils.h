@@ -28,7 +28,11 @@ enum
 //-----------------------------------------------------------------------------
 // Interface version
 //-----------------------------------------------------------------------------
+#if PLATFORM_64BITS
+#define PROCESS_UTILS_INTERFACE_VERSION "VProcessUtils002"
+#else
 #define PROCESS_UTILS_INTERFACE_VERSION "VProcessUtils001"
+#endif
 
 
 //-----------------------------------------------------------------------------

@@ -75,9 +75,11 @@ public:
 	virtual ConCommand		*FindCommand( const char *name ) = 0;
 	virtual const ConCommand *FindCommand( const char *name ) const = 0;
 
+#if !PLATFORM_64BITS
 	// Get first ConCommandBase to allow iteration
 	virtual ConCommandBase	*GetCommands( void ) = 0;
 	virtual const ConCommandBase *GetCommands( void ) const = 0;
+#endif
 
 	// Install a global change callback (to be called when any convar changes) 
 	virtual void			InstallGlobalChangeCallback( FnChangeCallback_t callback ) = 0;
@@ -102,6 +104,18 @@ public:
 #if defined( _X360 )
 	virtual void			PublishToVXConsole( ) = 0;
 #endif
+
+#if PLATFORM_64BITS
+	virtual void			SetMaxSplitScreenSlots( int nSlots ) = 0;
+	virtual int				GetMaxSplitScreenSlots() const = 0;
+
+	virtual void			AddSplitScreenConVars() = 0;
+	virtual void			RemoveSplitScreenConVars( CVarDLLIdentifier_t id ) = 0;
+
+	virtual int				GetConsoleDisplayFuncCount() const = 0;
+	virtual void			GetConsoleText( int nDisplayFuncIndex, char *pchText, size_t bufSize ) const = 0;
+#endif
+
 	virtual bool			IsMaterialThreadSetAllowed( ) const = 0;
 	virtual void			QueueMaterialThreadSetValue( ConVar *pConVar, const char *pValue ) = 0;
 	virtual void			QueueMaterialThreadSetValue( ConVar *pConVar, int nValue ) = 0;
@@ -187,7 +201,11 @@ inline ConCommandBase * ICvar::Iterator::Get( void )
 	return m_pIter->Get();
 }
 
+#if PLATFORM_64BITS
+#define CVAR_INTERFACE_VERSION "VEngineCvar007"
+#else
 #define CVAR_INTERFACE_VERSION "VEngineCvar004"
+#endif
 
 
 //-----------------------------------------------------------------------------
