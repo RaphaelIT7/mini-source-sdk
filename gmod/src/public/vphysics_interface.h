@@ -132,6 +132,10 @@ public:
 
 #define VPHYSICS_INTERFACE_VERSION	"VPhysics031"
 
+#if GAME_GMOD
+#define VPHYSICS_INTERFACE_VERSION_GMOD	"VPhysicsGMod"
+#endif
+
 abstract_class IPhysics : public IAppSystem
 {
 public:
@@ -150,6 +154,12 @@ public:
 	virtual IPhysicsCollisionSet		*FindOrCreateCollisionSet( unsigned int id, int maxElementCount ) = 0;
 	virtual IPhysicsCollisionSet		*FindCollisionSet( unsigned int id ) = 0;
 	virtual void						DestroyAllCollisionSets() = 0;
+
+#if GAME_GMOD
+	// Perferably this is only used temporary and instead SetLuaReference & ObjectDestroyed are used
+	// Then if those two work properly / they are deemed safe then this can be removed again
+	virtual bool						IsValidPhysicsObject( IPhysicsObject* pObject ) = 0;
+#endif
 };
 
 
@@ -411,6 +421,14 @@ public:
 	virtual void ObjectWake( IPhysicsObject *pObject ) = 0;
 	// called when an object goes to sleep (no longer simulating)
 	virtual void ObjectSleep( IPhysicsObject *pObject ) = 0;
+};
+
+abstract_class IGModPhysicsObjectEvent : public IPhysicsObjectEvent
+{
+public:
+	// GMOD - For gmod to keep track of creation/deletion to invalidate references
+	virtual void ObjectCreated( IPhysicsObject *pObject ) = 0;
+	virtual void ObjectDestroyed( IPhysicsObject *pObject ) = 0;
 };
 
 abstract_class IPhysicsConstraintEvent
@@ -697,6 +715,12 @@ public:
 	// destroy a CPhysCollide used in CreatePolyObject()/CreatePolyObjectStatic() when any owning IPhysicsObject is flushed from the queued deletion list.
 	virtual void DestroyCollideOnDeadObjectFlush( CPhysCollide * ) = 0; //should only be used after calling DestroyObject() on all IPhysicsObjects created with it.
 #endif
+
+	// Same as SetObjectEventHandler but meant for GMod specifically to use
+	// This is because by default the engine already uses SetObjectEventHandler though
+	// So we cannot rely on expecting The given IPhysicsObjectEvent to have the functions we extended
+	// since Rubat has to add those into the CCollisionEvent class
+	virtual void			SetGModObjectEventHandler( IGModPhysicsObjectEvent *pGModObjectEvent ) = 0;
 };
 
 enum callbackflags
@@ -932,6 +956,17 @@ public:
 
 	// 2025 - Planned to be added to Gmod once the new vphysics build is stable and usable for Gmod.
 	virtual float			GetBuoyancyRatio( void ) const = 0;
+
+	// Returns -1 as default
+	virtual int				GetLuaReference() const = 0;
+
+	// Allows GMod to store a Lua reference inside the object
+	// This allows GMod to push the same userdata so that only one userdata points to one object
+	// instead of having like 100+ userdatas pointing to the same thing (makes invalidating a hell)
+	virtual void			SetLuaReference( int nLuaReference ) = 0;
+
+	// Exposed to avoid calling functions on the wrong environment
+	virtual IPhysicsEnvironment *GetEnvironment() = 0;
 };
 
 #if PLATFORM_64BITS
