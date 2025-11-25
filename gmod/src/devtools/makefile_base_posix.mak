@@ -15,6 +15,7 @@
 
 OS := $(shell uname)
 HOSTNAME := $(shell hostname)
+DLL_EXT := .so # RaphaelIT7: If we don't do this, on 64x we else get projects/files with 64 appended!
 
 -include $(SRCROOT)/devtools/steam_def.mak
 -include $(SRCROOT)/devtools/sourcesdk_def.mak
@@ -135,14 +136,12 @@ ifeq ($(OS),Linux)
 	ifeq ($(TARGET_PLATFORM),linux64)
 		# nocona = pentium4 + 64bit + MMX, SSE, SSE2, SSE3 - no SSSE3 (that's three s's - added in core2)
 		ARCH_FLAGS += -march=$(MARCH_TARGET) -mtune=core2
-		LD_SO = ld-linux-x86_64.so.2
 		LIBSTDCXX := $(shell $(CXX) -print-file-name=libstdc++.a)
 		LIBSTDCXXPIC := $(shell $(CXX) -print-file-name=libstdc++.a)
 		LDFLAGS += -L/usr/lib/x86_64-linux-gnu/
 	else
 		# pentium4 = MMX, SSE, SSE2 - no SSE3 (added in prescott) # -msse3 -mfpmath=sse
 		ARCH_FLAGS += -m32 -march=$(MARCH_TARGET) -mtune=core2 $(SSE_GEN_FLAGS)
-		LD_SO = ld-linux.so.2
 		LIBSTDCXX := $(shell $(CXX) $(ARCH_FLAGS) -print-file-name=libstdc++.so)
 		LIBSTDCXXPIC := $(shell $(CXX) $(ARCH_FLAGS) -print-file-name=libstdc++.so)
 		LDFLAGS += -m32
@@ -179,7 +178,7 @@ ifeq ($(OS),Linux)
 	LIB_END_EXE = -Wl,--end-group -lm -ldl $(LIBSTDCXX) -lpthread 
 
 	LIB_START_SHLIB = $(PATHWRAP) -static-libgcc -Wl,--start-group
-	LIB_END_SHLIB = -Wl,--end-group -lm -ldl $(LIBSTDCXXPIC) -lpthread -l:$(LD_SO) -Wl,--version-script=$(SRCROOT)/devtools/version_script.linux.txt
+	LIB_END_SHLIB = -Wl,--end-group -lm -ldl $(LIBSTDCXXPIC) -lpthread -Wl,--version-script=$(SRCROOT)/devtools/version_script.linux.txt
 
 endif
 
