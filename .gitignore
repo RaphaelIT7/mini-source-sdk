@@ -56,4 +56,6 @@ config.cfg
 
 mp/game
 
-
+# In case you mklink/symlink vphysics_jolt or just build it inside of here directly
+gmod/game/bin/**
+gmod/src/vphysics_jolt
