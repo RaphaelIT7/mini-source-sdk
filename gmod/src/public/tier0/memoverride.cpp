@@ -465,6 +465,54 @@ void __cdecl operator delete[] ( void *pMem ) throw()
 }
 #endif
 
+// RaphaelIT7: due to __cpp_aligned_new which exists seamingly from C++17 & higher
+// we need to override these too as else we might try to delete unaligned memory as aligned memory!
+
+void *__cdecl operator new( size_t nSize, std::align_val_t align )
+{
+	return AllocUnattributed( nSize );
+}
+
+void *__cdecl operator new[] ( size_t nSize, std::align_val_t align )
+{
+	return AllocUnattributed( nSize );
+}
+
+void operator delete( void* pMem, std::align_val_t align ) noexcept
+{
+#if !defined(USE_LIGHT_MEM_DEBUG) && !defined(USE_MEM_DEBUG)
+	g_pMemAlloc->Free( pMem );
+#else
+	g_pMemAlloc->Free( pMem, ::g_pszModule, 0 );
+#endif
+}
+
+void operator delete[]( void* pMem, std::align_val_t align ) noexcept
+{
+#if !defined(USE_LIGHT_MEM_DEBUG) && !defined(USE_MEM_DEBUG)
+	g_pMemAlloc->Free( pMem );
+#else
+	g_pMemAlloc->Free( pMem, ::g_pszModule, 0 );
+#endif
+}
+
+void operator delete( void* pMem, size_t sz, std::align_val_t align ) noexcept
+{
+#if !defined(USE_LIGHT_MEM_DEBUG) && !defined(USE_MEM_DEBUG)
+	g_pMemAlloc->Free( pMem );
+#else
+	g_pMemAlloc->Free( pMem, ::g_pszModule, 0 );
+#endif
+}
+
+void operator delete[]( void* pMem, size_t sz, std::align_val_t align ) noexcept
+{
+#if !defined(USE_LIGHT_MEM_DEBUG) && !defined(USE_MEM_DEBUG)
+	g_pMemAlloc->Free( pMem );
+#else
+	g_pMemAlloc->Free( pMem, ::g_pszModule, 0 );
+#endif
+}
 
 //-----------------------------------------------------------------------------
 // Override some debugging allocation methods in MSVC
