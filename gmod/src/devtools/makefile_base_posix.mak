@@ -131,14 +131,13 @@ ifeq ($(OS),Linux)
 	ifeq ($(CXX),clang++)
 		CXX = $(CCACHE) $(VALVE_BINDIR)clang++ -Qunused-arguments
 	endif
-	LINK ?= $(CC)
+	LINK ?= $(CXX)
 
 	ifeq ($(TARGET_PLATFORM),linux64)
 		# nocona = pentium4 + 64bit + MMX, SSE, SSE2, SSE3 - no SSSE3 (that's three s's - added in core2)
 		ARCH_FLAGS += -march=$(MARCH_TARGET) -mtune=core2
-		LIBSTDCXX := $(shell $(CXX) -print-file-name=libstdc++.a)
-		LIBSTDCXXPIC := $(shell $(CXX) -print-file-name=libstdc++.a)
-		LDFLAGS += -L/usr/lib/x86_64-linux-gnu/
+		LIBSTDCXXPIC :=
+		CXXFLAGS += -fPIC
 	else
 		# pentium4 = MMX, SSE, SSE2 - no SSE3 (added in prescott) # -msse3 -mfpmath=sse
 		ARCH_FLAGS += -m32 -march=$(MARCH_TARGET) -mtune=core2 $(SSE_GEN_FLAGS)
