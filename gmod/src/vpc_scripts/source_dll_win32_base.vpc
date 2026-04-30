@@ -13,6 +13,7 @@ $MacroRequired				"OUTBINDIR"
 $Macro OUTBINDIR	"$OUTBINDIR$PLATSUBDIR"
 $Macro LIBPUBLIC	"$SRCDIR\lib\public$PLATSUBDIR"
 $Macro LIBCOMMON	"$SRCDIR\lib\common$PLATSUBDIR"
+$Macro CRCCHECK		"$SRCDIR\devtools\bin\vpc.exe -crc2 $(MSBuildProjectFullPath)"
 
 $Include "$SRCDIR\vpc_scripts\loadaddress.vpc"
 $Include "$SRCDIR\vpc_scripts\source_dll_win32_debug.vpc"

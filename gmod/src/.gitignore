@@ -501,8 +501,6 @@ adhoc.cpp.copied
 
 *.pb.*
 
-vpc_linux
-
 *.o
 *.a
 *.so
