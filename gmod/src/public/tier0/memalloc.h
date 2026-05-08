@@ -153,6 +153,11 @@ inline void *MemAlloc_Alloc( size_t nSize )
 	return g_pMemAlloc->Alloc( nSize );
 }
 
+inline void *MemAlloc_Realloc( void *ptr, size_t nNewSize )
+{ 
+	return g_pMemAlloc->Realloc( ptr, nNewSize );
+}
+
 inline void *MemAlloc_Alloc( size_t nSize, const char *pFileName, int nLine )
 { 
 	return g_pMemAlloc->Alloc( nSize, pFileName, nLine );
@@ -475,6 +480,7 @@ inline void *_aligned_malloc( size_t nSize, size_t align )															{ retur
 inline void _aligned_free( void *ptr )																				{ free( ptr ); }
 
 inline void *MemAlloc_Alloc( size_t nSize, const char *pFileName = NULL, int nLine = 0 )							{ return malloc( nSize ); }
+inline void *MemAlloc_Realloc( void *ptr, size_t nNewSize )															{ return realloc( ptr, nNewSize ); }
 inline void MemAlloc_Free( void *ptr, const char *pFileName = NULL, int nLine = 0 )									{ free( ptr ); }
 
 inline void *MemAlloc_AllocAligned( size_t size, size_t align, const char *pszFile = NULL, int nLine = 0  )	        { return memalign( align, size ); }
