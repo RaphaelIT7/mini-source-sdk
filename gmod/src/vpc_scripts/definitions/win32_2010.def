@@ -24,7 +24,7 @@
 	
 		"$GameOutputFile"
 		{
-			"type"	"string"
+			"type"	"ignore"
 		}
 	
 		"$InheritedProjectPropertySheets"
@@ -1838,27 +1838,7 @@
 			"type"	"string"
 			"output"	"AdditionalInputs"
 		}
-
-		"$AdditionalDependencies_Proj"
-		{
-			"type"	"string"
-		}
-
-		"$OrderOnlyFileDependencies"
-		{
-			"type"	"string"
-		}
-
-		"$OrderOnlyProjectDependencies"
-		{
-			"type"	"string"
-		}
-
-		"$PotentialOutputs"
-		{
-			"type"	"string"
-		}
-
+		
 		"$ExecuteAfter"
 		{
 			"ordinals"
