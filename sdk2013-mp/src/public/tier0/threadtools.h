@@ -776,12 +776,8 @@ public:
 	uint32 GetOwnerId() const			{ return m_ownerID;	}
 	int	GetDepth() const				{ return m_depth; }
 private:
-#if defined( PLATFORM_64BITS )
-	volatile uint64 m_ownerID;
-#else
-	volatile uint32 m_ownerID;
-#endif
-	int				m_depth;
+	volatile ThreadId_t m_ownerID;
+	int					m_depth;
 };
 
 class ALIGN128 CAlignedThreadFastMutex : public CThreadFastMutex
