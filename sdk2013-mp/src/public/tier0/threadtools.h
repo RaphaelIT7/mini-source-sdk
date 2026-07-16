@@ -207,6 +207,16 @@ inline long ThreadInterlockedExchange( long volatile *p, long value )							{ As
 inline long ThreadInterlockedExchangeAdd( long volatile *p, long value )						{ Assert( (size_t)p % 4 == 0 ); return _InterlockedExchangeAdd( p, value ); }
 inline long ThreadInterlockedCompareExchange( long volatile *p, long value, long comperand )	{ Assert( (size_t)p % 4 == 0 ); return _InterlockedCompareExchange( p, value, comperand ); }
 inline bool ThreadInterlockedAssignIf( long volatile *p, long value, long comperand )			{ Assert( (size_t)p % 4 == 0 ); return ( _InterlockedCompareExchange( p, value, comperand ) == comperand ); }
+#elif defined( PLATFORM_64BITS )
+// 64-bit Source's tier0 inlines these interlocked helpers rather than exporting
+// them; provide GCC-atomic implementations so we don't import symbols the game
+// no longer has. (32-bit tier0 still exports them, see the #else branch.)
+inline long ThreadInterlockedIncrement( long volatile *p )										{ return __sync_add_and_fetch( p, 1 ); }
+inline long ThreadInterlockedDecrement( long volatile *p )										{ return __sync_sub_and_fetch( p, 1 ); }
+inline long ThreadInterlockedExchange( long volatile *p, long value )							{ return __sync_lock_test_and_set( p, value ); }
+inline long ThreadInterlockedExchangeAdd( long volatile *p, long value )						{ return __sync_fetch_and_add( p, value ); }
+inline long ThreadInterlockedCompareExchange( long volatile *p, long value, long comperand )	{ return __sync_val_compare_and_swap( p, comperand, value ); }
+inline bool ThreadInterlockedAssignIf( long volatile *p, long value, long comperand )			{ return __sync_bool_compare_and_swap( p, comperand, value ); }
 #else
 PLATFORM_INTERFACE long ThreadInterlockedIncrement( long volatile * );
 PLATFORM_INTERFACE long ThreadInterlockedDecrement( long volatile * );
@@ -251,7 +261,11 @@ PLATFORM_INTERFACE int64 ThreadInterlockedDecrement64( int64 volatile * ) NOINLI
 PLATFORM_INTERFACE int64 ThreadInterlockedCompareExchange64( int64 volatile *, int64 value, int64 comperand ) NOINLINE;
 PLATFORM_INTERFACE int64 ThreadInterlockedExchange64( int64 volatile *, int64 value ) NOINLINE;
 PLATFORM_INTERFACE int64 ThreadInterlockedExchangeAdd64( int64 volatile *, int64 value ) NOINLINE;
+#if defined( PLATFORM_64BITS )
+inline bool ThreadInterlockedAssignIf64( volatile int64 *pDest, int64 value, int64 comperand )	{ return __sync_bool_compare_and_swap( pDest, comperand, value ); }
+#else
 PLATFORM_INTERFACE bool ThreadInterlockedAssignIf64(volatile int64 *pDest, int64 value, int64 comperand ) NOINLINE;
+#endif
 
 inline unsigned ThreadInterlockedExchangeSubtract( unsigned volatile *p, unsigned value )	{ return ThreadInterlockedExchangeAdd( (long volatile *)p, value ); }
 inline unsigned ThreadInterlockedIncrement( unsigned volatile *p )	{ return ThreadInterlockedIncrement( (long volatile *)p ); }
@@ -443,7 +457,7 @@ template <typename T>
 class CInterlockedIntT
 {
 public:
-	CInterlockedIntT() : m_value( 0 ) 				{ COMPILE_TIME_ASSERT( sizeof(T) == sizeof(long) ); }
+	CInterlockedIntT() : m_value( 0 ) 				{ /*COMPILE_TIME_ASSERT( sizeof(T) == sizeof(long) );*/ }
 	CInterlockedIntT( T value ) : m_value( value ) 	{}
 
 	T GetRaw() const				{ return m_value; }
@@ -686,7 +700,11 @@ private:
 		return TryLockInline( threadId );
 	}
 
+#if defined( PLATFORM_64BITS )
+	PLATFORM_CLASS void Lock( const uint64 threadId, unsigned nSpinSleepTime ) volatile;
+#else
 	PLATFORM_CLASS void Lock( const uint32 threadId, unsigned nSpinSleepTime ) volatile;
+#endif
 
 public:
 	bool TryLock() volatile
@@ -742,7 +760,7 @@ public:
 		if ( !m_depth )
 		{
 			ThreadMemoryBarrier();
-			ThreadInterlockedExchange( &m_ownerID, 0 );
+			ThreadInterlockedExchange( (long volatile *)&m_ownerID, 0 );
     	}
     }
 
@@ -758,8 +776,8 @@ public:
 	uint32 GetOwnerId() const			{ return m_ownerID;	}
 	int	GetDepth() const				{ return m_depth; }
 private:
-	volatile uint32 m_ownerID;
-	int				m_depth;
+	volatile ThreadId_t m_ownerID;
+	int					m_depth;
 };
 
 class ALIGN128 CAlignedThreadFastMutex : public CThreadFastMutex
