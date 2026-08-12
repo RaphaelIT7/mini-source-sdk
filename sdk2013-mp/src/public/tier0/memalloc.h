@@ -466,26 +466,20 @@ struct MemAllocFileLine_t
 
 #elif defined( POSIX )
 
-inline void MemAlloc_CheckAlloc( void *ptr, size_t nSize )
-{
-	if ( !ptr )
-		MemAllocOOMError( nSize );
-}
-
 #if defined( OSX )
 // Mac always aligns allocs, don't need to call posix_memalign which doesn't exist in 10.5.8 which TF2 still needs to run on
 //inline void *memalign(size_t alignment, size_t size) {void *pTmp=NULL; posix_memalign(&pTmp, alignment, size); return pTmp;}
-inline void *memalign(size_t alignment, size_t size) {void *pTmp=NULL; pTmp = malloc(size); MemAlloc_CheckAlloc( pTmp, size ); return pTmp;}
+inline void *memalign(size_t alignment, size_t size) {void *pTmp=NULL; pTmp = malloc(size); return pTmp;}
 #endif
 
-inline void *_aligned_malloc( size_t nSize, size_t align )															{ void *ptr = memalign( align, nSize ); MemAlloc_CheckAlloc( ptr, nSize ); return ptr;  }
+inline void *_aligned_malloc( size_t nSize, size_t align )															{ void *ptr = memalign( align, nSize ); return ptr;  }
 inline void _aligned_free( void *ptr )																				{ free( ptr ); }
 
-inline void *MemAlloc_Alloc( size_t nSize, const char *pFileName = NULL, int nLine = 0 )							{ void *ptr = malloc( nSize ); MemAlloc_CheckAlloc( ptr, nSize ); return ptr; }
+inline void *MemAlloc_Alloc( size_t nSize, const char *pFileName = NULL, int nLine = 0 )							{ void *ptr = malloc( nSize ); return ptr; }
 inline void MemAlloc_Free( void *ptr, const char *pFileName = NULL, int nLine = 0 )									{ free( ptr ); }
 
-inline void *MemAlloc_AllocAligned( size_t size, size_t align, const char *pszFile = NULL, int nLine = 0  )	        { void *ptr = memalign( align, size ); MemAlloc_CheckAlloc( ptr, size ); return ptr; }
-inline void *MemAlloc_AllocAlignedFileLine( size_t size, size_t align, const char *pszFile = NULL, int nLine = 0 )	{ void *ptr = memalign( align, size ); MemAlloc_CheckAlloc( ptr, size ); return ptr; }
+inline void *MemAlloc_AllocAligned( size_t size, size_t align, const char *pszFile = NULL, int nLine = 0  )	        { void *ptr = memalign( align, size ); return ptr; }
+inline void *MemAlloc_AllocAlignedFileLine( size_t size, size_t align, const char *pszFile = NULL, int nLine = 0 )	{ void *ptr = memalign( align, size ); return ptr; }
 inline void MemAlloc_FreeAligned( void *pMemBlock, const char *pszFile = NULL, int nLine = 0 ) 						{ free( pMemBlock ); }
 
 #if defined( OSX )
@@ -507,7 +501,6 @@ inline void *MemAlloc_ReallocAligned( void *ptr, size_t size, size_t align )
 		free( ptr );
 	}
 
-	MemAlloc_CheckAlloc( ptr_new_aligned, size ); 
 	return ptr_new_aligned;
 }
 #else
