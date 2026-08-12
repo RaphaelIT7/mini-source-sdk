@@ -6,13 +6,32 @@
 // $NoKeywords: $
 //=============================================================================//
 
-#if defined(PLATFORM_64BITS)
-#define cpuid(in,a,b,c,d)												\
-	asm("mov %%rbx, %%rsi\n\t" "cpuid\n\t" "xchg %%rsi, %%rbx": "=a" (a), "=S" (b), "=c" (c), "=d" (d) : "a" (in));
+#ifdef PLATFORM_64BITS
+
+bool CheckMMXTechnology(void)
+{
+    return true;
+}
+
+bool CheckSSETechnology(void)
+{
+    return true;
+}
+
+bool CheckSSE2Technology(void)
+{
+    return true;
+}
+
+bool Check3DNowTechnology(void)
+{
+    return false;
+}
+
 #else
+
 #define cpuid(in,a,b,c,d)												\
 	asm("pushl %%ebx\n\t" "cpuid\n\t" "movl %%ebx,%%esi\n\t" "pop %%ebx": "=a" (a), "=S" (b), "=c" (c), "=d" (d) : "a" (in));
-#endif
 
 bool CheckMMXTechnology(void)
 {
@@ -50,3 +69,5 @@ bool Check3DNowTechnology(void)
     }
     return false;
 }
+
+#endif

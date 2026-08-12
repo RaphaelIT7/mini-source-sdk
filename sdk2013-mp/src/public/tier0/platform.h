@@ -1203,6 +1203,8 @@ PLATFORM_INTERFACE void				Plat_GetModuleFilename( char *pOut, int nMaxBytes );
 
 PLATFORM_INTERFACE void				Plat_ExitProcess( int nCode );
 
+// RaphaelIT7: So that we avoid redefining in jolt
+#define NEWER_SOURCESDK
 typedef uint32 strlen_t;
 
 PLATFORM_INTERFACE void Plat_getwd( char *pWorkingDirectory, strlen_t nBufLen );
